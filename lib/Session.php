@@ -35,11 +35,6 @@ class Session implements \ArrayAccess {
         $config = $request->getLocalVar("aerys.session.config");
         $this->driver = $config["driver"];
 
-        if (!isset($config["cookie_flags"])) {
-            $info = $request->getConnectionInfo();
-            $config["cookie_flags"] = $info["is_encrypted"] ? ["secure"] : [];
-        }
-
         $config += static::CONFIG;
         $request->setLocalVar("aerys.session.config", $config);
 

@@ -45,7 +45,7 @@ function session(array $config = []) {
             $this->config = $config;
         }
 
-        public function getMiddleware(InternalRequest $request) {
+        public function filter(InternalRequest $request) {
             $request->locals["aerys.session.config"] = $this->config;
 
             $message = "";
@@ -67,6 +67,11 @@ function session(array $config = []) {
             $body = substr($message, $headerEndOffset + 4);
 
             $config = $request->locals["aerys.session.config"];
+
+            if (!isset($config["cookie_flags"])) {
+                $config["cookie_flags"] = $request->isEncrypted ? ["secure"] : [];
+            }
+
             $cookie = $this->config["name"] . "=" . $sessionId;
             if ($config["ttl"] >= 0) {
                 $cookie .= "; Expires=" . date(\DateTime::RFC1123, time() + $config["ttl"]);
