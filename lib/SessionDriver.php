@@ -6,24 +6,33 @@ use Amp\Promise;
 
 interface SessionDriver {
     /**
-     * @return \Amp\Promise resolving to a \stdClass with current session data
+     * Creates a lock and reads the current session data
+     * @return \Amp\Promise resolving to an array with current session data
      */
     public function open(string $id): Promise;
 
     /**
-     * @param \stdClass $data to store
+     * Saves and unlocks a session
+     * @param array $data to store
      * @return \Amp\Promise resolving after success
      */
-    public function save(string $id, \stdClass $data): Promise;
+    public function save(string $id, array $data): Promise;
 
     /**
-     * Create a lock so that nobody can read nor write the session data form now on
-     * @return \Amp\Promise resolving when a lock could be created
-     */
-    public function lock(string $id): Promise;
-    /**
-     * Unlocks the session so that session can be read and written to again
+     * Regenerates a session id
      * @return \Amp\Promise resolving after success
+     */
+    public function regenerate(string $oldId, string $newId): Promise {
+
+    /**
+     * Reloads the session contents and locks
+     * @return \Amp\Promise resolving to an array with current session data
+     */
+    public function read(string $id): Promise;
+
+    /**
+     * Unlocks the session, reloads data without saving
+     * @return \Amp\Promise resolving to an array with current session data
      */
     public function unlock(string $id): Promise;
 
