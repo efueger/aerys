@@ -98,6 +98,9 @@ class Session implements \ArrayAccess {
      * @return \Amp\Promise resolving after success
      */
     public function save(): Promise {
+        if (!$this->writable) {
+            throw new \Exception("Session is not locked, can't write"); // @TODO change to more specific exception
+        }
         $this->writable = false;
         return pipe($this->driver->save($this->id, $this->data), $this->defaultPipe);
     }
@@ -115,6 +118,9 @@ class Session implements \ArrayAccess {
      * @return \Amp\Promise resolving after success
      */
     public function unlock(): Promise {
+        if (!$this->writable) {
+            throw new \Exception("Session is not locked, can't write"); // @TODO change to more specific exception
+        }
         $this->writable = false;
         return pipe($this->driver->unlock(), function() {
             return pipe($this->config["driver"]->read($this->id), $this->readPipe);
@@ -144,6 +150,8 @@ class Session implements \ArrayAccess {
     }
 
     public function __destruct() {
-        $this->save();
+        if ($this->writable) {
+            $this->save();
+        }
     }
 }
