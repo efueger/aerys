@@ -32,6 +32,28 @@ function websocket(Websocket $app, array $options = []) {
 }
 
 /**
+ * @param array $config must contain driver
+ * @return Middleware to be used with Router or Host::use()
+ */
+function session(array $config = []) {
+    assert(isset($config["driver"]) && $config["driver"] instanceof SessionDriver);
+
+    return new class($config) extends Middleware {
+        private $config;
+
+        public function __construct($config) {
+            $this->config = $config;
+        }
+
+        public function getMiddleware() {
+            return function (InternalRequest $request) {
+                $request->locals["aerys.session"] = $this->config;
+            };
+        }
+    };
+}
+
+/**
  * Create a static file root for use with Host instances
  *
  * @param string $docroot The filesystem directory from which to serve documents
