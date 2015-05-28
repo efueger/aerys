@@ -22,7 +22,7 @@ interface SessionDriver {
      * Regenerates a session id
      * @return \Amp\Promise resolving after success
      */
-    public function regenerate(string $oldId, string $newId): Promise {
+    public function regenerate(string $oldId, string $newId): Promise;
 
     /**
      * Reloads the session contents and locks

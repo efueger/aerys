@@ -4,7 +4,7 @@ namespace Aerys;
 
 use Amp\{
     Promise,
-    function pipe,
+    function pipe
 };
 
 class Session implements \ArrayAccess {
@@ -13,7 +13,8 @@ class Session implements \ArrayAccess {
         "ttl" => -1,
     ];
 
-    private $response;
+    private $request;
+    private $driver;
     private $id;
     private $config;
     private $data;
@@ -21,11 +22,7 @@ class Session implements \ArrayAccess {
     private $readPipe;
     private $defaultPipe;
 
-    /**
-     * @param Request $request
-     * @param Response $response
-     */
-    public function  __construct(Request $request, Response $response) {
+    public function  __construct(Request $request) {
         $this->readPipe = function(array $data) {
             $this->data = $data;
             return $this;
@@ -34,16 +31,19 @@ class Session implements \ArrayAccess {
             return $this;
         };
 
-        $this->config = $request->getLocalVar("aerys.session");
+        $this->request = $request;
+        $config = $request->getLocalVar("aerys.session.config");
+        $this->driver = $config["driver"];
 
-        if (!isset($this->config["cookie_flags"])) {
+        if (!isset($config["cookie_flags"])) {
             $info = $request->getConnectionInfo();
-            $this->config["cookie_flags"] = $info["is_encrypted"] ? ["secure"] : [];
+            $config["cookie_flags"] = $info["is_encrypted"] ? ["secure"] : [];
         }
 
-        $this->config += static::CONFIG;
+        $config += static::CONFIG;
+        $request->setLocalVar("aerys.session.config", $config);
 
-        $this->id = $request->getCookie($this->config["name"]) ?? $this->generateId();
+        $this->setId($request->getCookie($config["name"]) ?? $this->generateId());
         $this->setSessionCookie();
     }
 
@@ -52,14 +52,18 @@ class Session implements \ArrayAccess {
         return bin2hex(random_bytes(24));
     }
 
-    private function setSessionCookie() {
-        $expires = $this->config["ttl"] == -1 ? [] : ["Expires" => date(\DateTime::RFC1123, time() + $this->config["ttl"])];
-        $this->response->setCookie($this->config["name"], $this->id, $expires + $this->config["cookie_flags"]);
+    private function setId($id) {
+        $this->id = $id;
+        $this->request->setLocalVar("aerys.session.id", $id);
     }
 
+    /**
+     * @param int $ttl sets a ttl, -1 to disable it
+     */
     public function setTTL(int $ttl) {
-        $this->config["ttl"] = $ttl;
-        $this->setSessionCookie();
+        $config = $this->request->getLocalVar("aerys.session.config");
+        $config["ttl"] = $ttl;
+        $this->request->setLocalVar("aerys.session.config", $config);
     }
 
     public function offsetExists($offset) {
@@ -91,7 +95,7 @@ class Session implements \ArrayAccess {
      */
     public function open(): Promise {
         $this->writable = true;
-        return pipe($this->config["driver"]->open($this->id), $this->readPipe);
+        return pipe($this->driver->open($this->id), $this->readPipe);
     }
 
     /**
@@ -100,7 +104,7 @@ class Session implements \ArrayAccess {
      */
     public function save(): Promise {
         $this->writable = false;
-        return pipe($this->config["driver"]->save($this->id, $this->data), $this->defaultPipe);
+        return pipe($this->driver->save($this->id, $this->data), $this->defaultPipe);
     }
 
     /**
@@ -108,7 +112,7 @@ class Session implements \ArrayAccess {
      * @return \Amp\Promise resolving after success
      */
     public function read(): Promise {
-        return pipe($this->config["driver"]->read($this->id), $this->readPipe);
+        return pipe($this->driver->read($this->id), $this->readPipe);
     }
 
     /**
@@ -116,8 +120,8 @@ class Session implements \ArrayAccess {
      * @return \Amp\Promise resolving after success
      */
     public function unlock(): Promise {
-        $this->writable = false
-        return pipe($this->config["driver"]->unlock(), function() {
+        $this->writable = false;
+        return pipe($this->driver->unlock(), function() {
             return pipe($this->config["driver"]->read($this->id), $this->readPipe);
         });
     }
@@ -128,9 +132,8 @@ class Session implements \ArrayAccess {
      */
     public function regenerate(): Promise {
         $new = $this->generateId();
-        $promise = $this->config["driver"]->regenerate($this->id, $new);
-        $this->id = $new;
-        $this->setSessionCookie();
+        $promise = $this->driver->regenerate($this->id, $new);
+        $this->setId($new);
         return pipe($promise, $this->defaultPipe);
     }
 
@@ -139,9 +142,8 @@ class Session implements \ArrayAccess {
      * @return \Amp\Promise resolving after success
      */
     public function destroy(): Promise {
-        $promise = $this->config["driver"]->destroy($this->id);
-        $this->id = $this->generateId();
-        $this->setSessionCookie();
+        $promise = $this->driver->destroy($this->id);
+        $this->setId($this->generateId());
         $this->data = [];
         return pipe($promise, $this->defaultPipe);
     }

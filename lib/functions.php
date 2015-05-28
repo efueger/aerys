@@ -45,10 +45,43 @@ function session(array $config = []) {
             $this->config = $config;
         }
 
-        public function getMiddleware() {
-            return function (InternalRequest $request) {
-                $request->locals["aerys.session"] = $this->config;
-            };
+        public function getMiddleware(InternalRequest $request) {
+            $request->locals["aerys.session.config"] = $this->config;
+
+            $message = "";
+            $headerEndOffset = null;
+            do {
+                $message .= ($part = yield);
+            } while ($part !== Filter::END && ($headerEndOffset = \strpos($message, "\r\n\r\n")) === false);
+            if (!isset($headerEndOffset)) {
+                return $message;
+            }
+
+            $sessionId = $request->locals["aerys.session.id"] ?? null;
+            if (!isset($sessionId)) {
+                return $message;
+            }
+
+            $startLineAndHeaders = substr($message, 0, $headerEndOffset);
+            list($startLine, $headers) = explode("\r\n", $startLineAndHeaders, 2);
+            $body = substr($message, $headerEndOffset + 4);
+
+            $config = $request->locals["aerys.session.config"];
+            $cookie = $this->config["name"] . "=" . $sessionId;
+            if ($config["ttl"] >= 0) {
+                $cookie .= "; Expires=" . date(\DateTime::RFC1123, time() + $config["ttl"]);
+            }
+            foreach ($this->config["cookie_flags"] as $name => $value) {
+                if (is_int($name)) {
+                    $cookie .= "; $value";
+                } else {
+                    $cookie .= "; $name=$value";
+                }
+            }
+
+            $headers = addHeader($headers, "Set-Cookie", $cookie);
+
+            return "{$startLine}\r\n{$headers}\r\n\r\n{$body}";
         }
     };
 }
