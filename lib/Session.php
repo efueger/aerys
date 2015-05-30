@@ -2,7 +2,7 @@
 
 namespace Aerys;
 
-use use Amp\Success;Amp\{
+use Amp\{
     Promise,
     Success,
     function pipe
@@ -17,7 +17,6 @@ class Session implements \ArrayAccess {
     private $request;
     private $driver;
     private $id; // usually _the id_, false when expired (empty session data), null when not set at all
-    private $config;
     private $data;
     private $writable = false;
     private $readPipe;
@@ -57,7 +56,9 @@ class Session implements \ArrayAccess {
     }
 
     /**
-     * @param int $ttl sets a ttl, -1 to disable it
+     * Set a TTL (in seconds), so that the session expires after that time
+     *
+     * @param int $ttl sets a ttl, -1 to disable it [means: cookie persists until browser close]
      */
     public function setTTL(int $ttl) {
         $config = $this->request->getLocalVar("aerys.session.config");
