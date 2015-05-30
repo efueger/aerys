@@ -26,7 +26,7 @@ class Session implements \ArrayAccess {
     public function  __construct(Request $request) {
         $this->readPipe = function(array $data) {
             if (empty($data)) {
-                $this->request->setLocalVar("aerys.session.id", false);
+                $this->setId(false);
             }
             $this->data = $data;
             return $this;
@@ -71,7 +71,7 @@ class Session implements \ArrayAccess {
 
     public function offsetGet($offset) {
         if (!array_key_exists($offset, $this->data)) {
-            throw new \Exception("Key '$offset' does not exist in session"); // @TODO change to more specific exception
+            throw new \Exception("Key '$offset' does not exist in session");
         }
 
         return $this->data[$offset];
@@ -79,7 +79,7 @@ class Session implements \ArrayAccess {
 
     public function offsetSet($offset, $value) {
         if (!$this->writable) {
-            throw new \Exception("Session is not locked, can't write"); // @TODO change to more specific exception
+            throw new SessionLockException("Session is not locked, can't write");
         }
 
         $this->data[$offset] = $value;
@@ -95,7 +95,7 @@ class Session implements \ArrayAccess {
      */
     public function open(): Promise {
         if ($this->writable) {
-            throw new \Exception("Session already opened, can't open again"); // @TODO change to more specific exception
+            throw new SessionLockException("Session already opened, can't open again");
         }
 
         $this->writable = true;
@@ -112,7 +112,7 @@ class Session implements \ArrayAccess {
      */
     public function save(): Promise {
         if (!$this->writable) {
-            throw new \Exception("Session is not locked, can't write"); // @TODO change to more specific exception
+            throw new SessionLockException("Session is not locked, can't write");
         }
 
         $this->writable = false;
@@ -128,7 +128,7 @@ class Session implements \ArrayAccess {
      */
     public function read(): Promise {
         if ($this->writable) {
-            throw new \Exception("Session is locked, can't read in locked state; use the return value of the call to \\Aerys\\Session::open()"); // @TODO change to more specific exception
+            throw new SessionLockException("Session is locked, can't read in locked state; use the return value of the call to \\Aerys\\Session::open()");
         }
 
         return $this->id === null ? new Success($this) : pipe($this->driver->read($this->id), $this->readPipe);
@@ -140,7 +140,7 @@ class Session implements \ArrayAccess {
      */
     public function unlock(): Promise {
         if (!$this->writable) {
-            throw new \Exception("Session is not locked, can't write"); // @TODO change to more specific exception
+            throw new SessionLockException("Session is not locked, can't write");
         }
 
         $this->writable = false;
@@ -159,6 +159,10 @@ class Session implements \ArrayAccess {
      * @return \Amp\Promise resolving after success
      */
     public function regenerate(): Promise {
+        if (!$this->writable) {
+            throw new SessionLockException("Session is not locked, can't write");
+        }
+
         if ($this->id) {
             $new = $this->generateId();
             $promise = $this->driver->regenerate($this->id, $new);
@@ -174,6 +178,10 @@ class Session implements \ArrayAccess {
      * @return \Amp\Promise resolving after success
      */
     public function destroy(): Promise {
+        if (!$this->writable) {
+            throw new SessionLockException("Session is not locked, can't destroy");
+        }
+
         if ($this->id) {
             $promise = $this->driver->destroy($this->id);
             $this->setId(false);
