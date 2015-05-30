@@ -25,7 +25,7 @@ interface SessionDriver {
     public function regenerate(string $oldId, string $newId): Promise;
 
     /**
-     * Reloads the session contents and locks
+     * Reloads the session contents
      * @return \Amp\Promise resolving to an array with current session data
      */
     public function read(string $id): Promise;

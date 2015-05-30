@@ -72,10 +72,15 @@ function session(array $config = []) {
                 $config["cookie_flags"] = $request->isEncrypted ? ["secure"] : [];
             }
 
-            $cookie = $this->config["name"] . "=" . $sessionId;
-            if ($config["ttl"] >= 0) {
-                $cookie .= "; Expires=" . date(\DateTime::RFC1123, time() + $config["ttl"]);
+            if ($sessionId === false) {
+                $cookie = "{$this->config["name"]}=deleted; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+            } else {
+                $cookie = "{$this->config["name"]}=$sessionId";
+                if ($config["ttl"] >= 0) {
+                    $cookie .= "; Expires=" . date(\DateTime::RFC1123, time() + $config["ttl"]);
+                }
             }
+
             foreach ($this->config["cookie_flags"] as $name => $value) {
                 if (is_int($name)) {
                     $cookie .= "; $value";

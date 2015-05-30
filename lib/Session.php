@@ -2,8 +2,9 @@
 
 namespace Aerys;
 
-use Amp\{
+use use Amp\Success;Amp\{
     Promise,
+    Success,
     function pipe
 };
 
@@ -15,7 +16,7 @@ class Session implements \ArrayAccess {
 
     private $request;
     private $driver;
-    private $id;
+    private $id; // usually _the id_, false when expired (empty session data), null when not set at all
     private $config;
     private $data;
     private $writable = false;
@@ -24,6 +25,9 @@ class Session implements \ArrayAccess {
 
     public function  __construct(Request $request) {
         $this->readPipe = function(array $data) {
+            if (empty($data)) {
+                $this->request->setLocalVar("aerys.session.id", false);
+            }
             $this->data = $data;
             return $this;
         };
@@ -38,13 +42,13 @@ class Session implements \ArrayAccess {
         $config += static::CONFIG;
         $request->setLocalVar("aerys.session.config", $config);
 
-        $this->setId($request->getCookie($config["name"]) ?? $this->generateId());
+        $this->setId($request->getCookie($config["name"]));
         $this->setSessionCookie();
     }
 
 
     private function generateId() {
-        return bin2hex(random_bytes(24));
+        return base64_encode(random_bytes(24));
     }
 
     private function setId($id) {
@@ -77,6 +81,7 @@ class Session implements \ArrayAccess {
         if (!$this->writable) {
             throw new \Exception("Session is not locked, can't write"); // @TODO change to more specific exception
         }
+
         $this->data[$offset] = $value;
     }
 
@@ -89,8 +94,16 @@ class Session implements \ArrayAccess {
      * @return \Amp\Promise resolving after success
      */
     public function open(): Promise {
+        if ($this->writable) {
+            throw new \Exception("Session already opened, can't open again"); // @TODO change to more specific exception
+        }
+
         $this->writable = true;
-        return pipe($this->driver->open($this->id), $this->readPipe);
+        return !$this->id ? new Success($this) : pipe($this->driver->open($this->id), $this->readPipe)->when(function ($e) {
+            if ($e) {
+                $this->writable = false;
+            }
+        });
     }
 
     /**
@@ -101,7 +114,11 @@ class Session implements \ArrayAccess {
         if (!$this->writable) {
             throw new \Exception("Session is not locked, can't write"); // @TODO change to more specific exception
         }
+
         $this->writable = false;
+        if (!$this->id && $this->data) {
+            $this->setId($this->generateId());
+        }
         return pipe($this->driver->save($this->id, $this->data), $this->defaultPipe);
     }
 
@@ -110,7 +127,11 @@ class Session implements \ArrayAccess {
      * @return \Amp\Promise resolving after success
      */
     public function read(): Promise {
-        return pipe($this->driver->read($this->id), $this->readPipe);
+        if ($this->writable) {
+            throw new \Exception("Session is locked, can't read in locked state; use the return value of the call to \\Aerys\\Session::open()"); // @TODO change to more specific exception
+        }
+
+        return $this->id === null ? new Success($this) : pipe($this->driver->read($this->id), $this->readPipe);
     }
 
     /**
@@ -121,10 +142,16 @@ class Session implements \ArrayAccess {
         if (!$this->writable) {
             throw new \Exception("Session is not locked, can't write"); // @TODO change to more specific exception
         }
+
         $this->writable = false;
-        return pipe($this->driver->unlock(), function() {
-            return pipe($this->config["driver"]->read($this->id), $this->readPipe);
-        });
+        if ($this->id) {
+            return pipe($this->driver->unlock(), function () {
+                return pipe($this->config["driver"]->read($this->id), $this->readPipe);
+            });
+        } else {
+            $this->data = [];
+            return new Success($this);
+        }
     }
 
     /**
@@ -132,10 +159,14 @@ class Session implements \ArrayAccess {
      * @return \Amp\Promise resolving after success
      */
     public function regenerate(): Promise {
-        $new = $this->generateId();
-        $promise = $this->driver->regenerate($this->id, $new);
-        $this->setId($new);
-        return pipe($promise, $this->defaultPipe);
+        if ($this->id) {
+            $new = $this->generateId();
+            $promise = $this->driver->regenerate($this->id, $new);
+            $this->setId($new);
+            return pipe($promise, $this->defaultPipe);
+        } else {
+            return new Success($this);
+        }
     }
 
     /**
@@ -143,10 +174,15 @@ class Session implements \ArrayAccess {
      * @return \Amp\Promise resolving after success
      */
     public function destroy(): Promise {
-        $promise = $this->driver->destroy($this->id);
-        $this->setId($this->generateId());
-        $this->data = [];
-        return pipe($promise, $this->defaultPipe);
+        if ($this->id) {
+            $promise = $this->driver->destroy($this->id);
+            $this->setId(false);
+            $this->data = [];
+            $this->writable = false;
+            return pipe($promise, $this->defaultPipe);
+        } else {
+            return new Success($this);
+        }
     }
 
     public function __destruct() {
