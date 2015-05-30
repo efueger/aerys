@@ -25,6 +25,7 @@ class InternalRequest {
     public $uriPort;
     public $uriPath;
     public $uriQuery;
+    public $cookies;
     public $remaining;
     public $time;
     public $locals;
