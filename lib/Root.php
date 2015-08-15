@@ -41,7 +41,6 @@ class Root implements \SplObserver {
     /**
      * @param string $root
      * @param \Amp\File\Driver $filesystem
-     * @param \Amp\Reactor $reactor
      * @throws \DomainException On invalid root path
      */
     public function __construct(string $root, file\Driver $filesystem = null) {
@@ -203,13 +202,13 @@ class Root implements \SplObserver {
         }
 
         foreach ($request->getHeaderArray("Cache-Control") as $value) {
-            if (strcasecmp($value, "no-cache") === 0) {
+            if (\strcasecmp($value, "no-cache") === 0) {
                 return null;
             }
         }
 
         foreach ($request->getHeaderArray("Pragma") as $value) {
-            if (strcasecmp($value, "no-cache") === 0) {
+            if (\strcasecmp($value, "no-cache") === 0) {
                 return null;
             }
         }
@@ -479,17 +478,17 @@ class Root implements \SplObserver {
      */
     private function normalizeByteRanges(int $size, string $rawRanges) {
         $rawRanges = \str_ireplace([' ', 'bytes='], '', $rawRanges);
-        $rawRanges = explode(',', $rawRanges);
+        $rawRanges = \explode(',', $rawRanges);
 
         $ranges = [];
 
         foreach ($rawRanges as $range) {
             // If a range is missing the dash separator it's malformed; pull out here.
-            if (false === strpos($range, '-')) {
+            if (false === \strpos($range, '-')) {
                 return null;
             }
 
-            list($startPos, $endPos) = explode('-', rtrim($range));
+            list($startPos, $endPos) = \explode('-', \rtrim($range));
 
             if ($startPos === '' && $endPos === '') {
                 return null;

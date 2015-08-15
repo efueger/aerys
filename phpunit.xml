@@ -19,7 +19,8 @@
 
     <filter>
         <whitelist>
-            <directory>./lib/</directory>
+            <!--<directory>./lib/</directory>-->
+            <file>./lib/Root.php</file>
         </whitelist>
     </filter>
 </phpunit>
