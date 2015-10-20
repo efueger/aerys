@@ -7,8 +7,8 @@ engines:
       ignore_warnings: true
   phpmd:
     enabled: true
-      file_extensions: "php"
-      rulesets: "unusedcode"
+#      file_extensions: "php"
+#      rulesets: "unusedcode"
 ratings:
   paths:
   - "**.php"
