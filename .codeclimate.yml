@@ -7,7 +7,7 @@ engines:
       ignore_warnings: true
   phpmd:
     enabled: true
-      file_extensions: "php
+      file_extensions: "php"
 ratings:
   paths:
   - "**.php"
