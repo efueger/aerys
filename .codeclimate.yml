@@ -1,0 +1,17 @@
+engines:
+  phpcodesniffer:
+    enabled: true
+    config:
+      file_extensions: "php,inc,lib"
+      standard: "PSR1,PSR2"
+      ignore_warnings: true
+  phpmd:
+    enabled: true
+      file_extensions: "php
+ratings:
+  paths:
+  - "**.php"
+  - "**.module"
+  - "**.inc"
+exclude_paths:
+- test/**/*
