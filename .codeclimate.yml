@@ -8,6 +8,7 @@ engines:
   phpmd:
     enabled: true
       file_extensions: "php"
+      rulesets: "unusedcode"
 ratings:
   paths:
   - "**.php"
